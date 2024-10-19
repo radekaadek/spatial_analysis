@@ -4,9 +4,10 @@ import requests
 import rasterio
 import os
 
-# check if ./temp exists
-if not os.path.exists('temp'):
-    os.mkdir('temp')
+buffer_dir = 'vectors'
+
+if not os.path.exists(buffer_dir):
+    os.mkdir(buffer_dir)
 
 file_name = 'mydata/border_2180.shp'
 
@@ -14,14 +15,12 @@ df = gpd.read_file(file_name)
 # reproject to epsg:2180
 df = df.to_crs(epsg=2180)
 
-print(df)
-
 # make a buffer of feature with name Świeradów Zdrój
 feature = df[df['JPT_NAZWA_'] == 'Świeradów-Zdrój']
 buffer = feature.buffer(200)
 
-# save to /temp/buffer.shp
-buffer.to_file('temp/buffer.shp')
+# save
+buffer.to_file('vectors/buffer.gpkg')
 
 buffer_bbox = buffer.total_bounds
 center = buffer.centroid
@@ -60,12 +59,9 @@ response = requests.get(url)
 data = response.content
 
 
-file_path = 'temp/xd.tif'
+file_path = 'rasters/dem_original.tif'
 
 with open(file_path, 'wb') as f:
     f.write(data)
-
-luban_gml = '0210_GML'
-obok_gml = '0212_GML'
 
 

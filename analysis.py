@@ -59,6 +59,23 @@ wyrobisko = 'PTWZ_A.xml'
 pozostale = 'PTNZ_A.xml'
 
 
+name_to_xml_name = {
+    'rivers': 'SWRS_L.xml',
+    'buildings': 'BUBD_A.xml',
+    'woda_powierzchnia': 'PTWP_A.xml',
+    'zabudowa': 'PTZB_A.xml',
+    'teren_lesny': 'PTLZ_A.xml',
+    'roslinnosc_krzewiasta': 'PTRK_A.xml',
+    'teren_pod_drogami': 'PTKM_A.xml',
+    'grunt_nieuzytkowy': 'PTGN_A.xml',
+    'plac': 'PTPL_A.xml',
+    'skladowisko_odpadow': 'PTSO_A.xml',
+    'wyrobisko': 'PTWZ_A.xml',
+    'pozostale': 'PTNZ_A.xml'
+}
+
+
+
 area_polygon = gpd.read_file('swieradow_buffer/swieradow_buffer.shp')
 
 rivers_frame = process_feature(rivers, area_polygon)
@@ -91,28 +108,51 @@ skladowisko_odpadow_frame.to_file(f'{vector_dir}/skladowisko_odpadow.gpkg')
 wyrobisko_frame.to_file(f'{vector_dir}/wyrobisko.gpkg')
 
 
+
 # load the dem
-result = rasterio.open('temp/xd.tif')
+dem_path = 'rasters/dem_original.tif'
+result = rasterio.open(dem_path)
 band = result.read(1)
 band_shape = band.shape
+bounds = result.bounds
 band = np.zeros(band.shape)
-
-
 
 
 raster_dir = 'rasters'
 if not os.path.exists(raster_dir):
     os.mkdir(raster_dir)
-# gdal_rasterize -burn 1 -ts 1641 1280  -te <xmin> <ymin> <xmax> <ymax> 02_GML/0210_GML/PL.PZGiK.337.0210/BDOT10k/PL.PZGiK.337.0210__OT_BUBD_A.xml here.tif
 
 # rasterize all features
 for vector_file in os.listdir(vector_dir):
     file_path = f'{vector_dir}/{vector_file}'
     feature = vector_file.split('.')[0]
-    bounds = result.bounds
-    gdal_command = f"gdal_rasterize -burn 1 -ts {band_shape[0]} {band_shape[1]} -te {bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]} {file_path} {raster_dir}/{feature}.tif"
+    gdal_command = f"gdal_rasterize -burn 1 -ts {band_shape[1]} {band_shape[0]} -te {bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]} {file_path} {raster_dir}/{feature}.tif"
     subprocess.run(gdal_command, shell=True)
 
+# # calculate distance to nearest feature for each pixel
+# building_distances = np.zeros(band.shape)
+# work_dir = 'working'
+# if not os.path.exists(work_dir):
+#     os.mkdir(work_dir)
+# file_path = f'{raster_dir}/buildings.tif'
+# building_distances_path = f'{work_dir}/building_distances.tif'
+# gdal_command = f"gdal_proximity.py {file_path} {building_distances_path}"
+# subprocess.run(gdal_command, shell=True)
+
+def calculate_distance(raster_path: str, output_path: str) -> None:
+    gdal_command = f"gdal_proximity.py {raster_path} {output_path}"
+    subprocess.run(gdal_command, shell=True)
+
+distances_dir = 'distances'
+
+if not os.path.exists(distances_dir):
+    os.mkdir(distances_dir)
+
+for file in os.listdir(raster_dir):
+    file_path = f'{raster_dir}/{file}'
+    feature = file.split('.')[0]
+    output_path = f'{distances_dir}/{feature}.tif'
+    calculate_distance(file_path, output_path)
 
 
 
