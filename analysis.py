@@ -33,6 +33,7 @@ def process_feature(feature_name: str, area_polygon: gpd.GeoDataFrame) -> pd.Dat
         return gpd.GeoDataFrame()
     return clipped
 
+pixel_size = 5
 
 # base_name = 'PL.PZGiK.337.'
 # luban = '0210_GML'
@@ -76,7 +77,14 @@ name_to_xml_name = {
 
 
 
-area_polygon = gpd.read_file('swieradow_buffer/swieradow_buffer.shp')
+# area_polygon = gpd.read_file('swieradow_buffer/swieradow_buffer.shp')
+# load the dem
+dem_path = 'rasters/dem_original.tif'
+result = rasterio.open(dem_path)
+band = result.read(1)
+band_shape = band.shape
+bounds = result.bounds
+area_polygon = gpd.GeoDataFrame(geometry=[shapely.geometry.box(*bounds)])
 
 rivers_frame = process_feature(rivers, area_polygon)
 buildings_frame = process_feature(buildings, area_polygon)
@@ -109,12 +117,6 @@ wyrobisko_frame.to_file(f'{vector_dir}/wyrobisko.gpkg')
 
 
 
-# load the dem
-dem_path = 'rasters/dem_original.tif'
-result = rasterio.open(dem_path)
-band = result.read(1)
-band_shape = band.shape
-bounds = result.bounds
 
 
 raster_dir = 'rasters'
@@ -158,20 +160,20 @@ result_band = np.zeros(band.shape)
 #### BUILDINGS ####
 # buildings - at <150 meters set nodata
 buildings_raster = rasterio.open(f'{distances_dir}/buildings.tif')
-building_distances = buildings_raster.read(1)
+building_distances = buildings_raster.read(1)*pixel_size
 result_band[building_distances <= 150] = np.nan
 penalty_mask = (150 < building_distances) & (building_distances < 200)
-result_band[penalty_mask] = 200 - building_distances[penalty_mask]
+result_band[penalty_mask] += 400 - building_distances[penalty_mask] * 2
 
 #### WATER ####
 # water - at <100 meters set nodata
 # the closer to the water, the better
-# water_raster = rasterio.open(f'{distances_dir}/rivers.tif')
-# water_distances = water_raster.read(1)
-# result_band[water_distances <= 100] = np.nan
+water_raster = rasterio.open(f'{distances_dir}/rivers.tif')
+water_distances = water_raster.read(1)*pixel_size
+result_band[water_distances <= 100] = np.nan
 # dont forget to check if nodata is set
-# penalty_mask = (water_distances > 100) & (~np.isnan(water_distances))
-# result_band[penalty_mask] = water_distances[penalty_mask]
+penalty_mask = (~np.isnan(result_band))
+result_band[penalty_mask] += water_distances[penalty_mask] * 0.5
 
 
 
