@@ -115,7 +115,6 @@ result = rasterio.open(dem_path)
 band = result.read(1)
 band_shape = band.shape
 bounds = result.bounds
-band = np.zeros(band.shape)
 
 
 raster_dir = 'rasters'
@@ -153,6 +152,35 @@ for file in os.listdir(raster_dir):
     feature = file.split('.')[0]
     output_path = f'{distances_dir}/{feature}.tif'
     calculate_distance(file_path, output_path)
+
+result_band = np.zeros(band.shape)
+
+#### BUILDINGS ####
+# buildings - at <150 meters set nodata
+buildings_raster = rasterio.open(f'{distances_dir}/buildings.tif')
+building_distances = buildings_raster.read(1)
+result_band[building_distances <= 150] = np.nan
+penalty_mask = (150 < building_distances) & (building_distances < 200)
+result_band[penalty_mask] = 200 - building_distances[penalty_mask]
+
+#### WATER ####
+# water - at <100 meters set nodata
+# the closer to the water, the better
+# water_raster = rasterio.open(f'{distances_dir}/rivers.tif')
+# water_distances = water_raster.read(1)
+# result_band[water_distances <= 100] = np.nan
+# dont forget to check if nodata is set
+# penalty_mask = (water_distances > 100) & (~np.isnan(water_distances))
+# result_band[penalty_mask] = water_distances[penalty_mask]
+
+
+
+print(result_band)
+result_profile = result.profile
+with rasterio.open("result.tif", "w", **result_profile) as dst:
+    dst.write(result_band, 1)
+
+
 
 
 
