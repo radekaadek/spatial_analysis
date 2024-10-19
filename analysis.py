@@ -4,6 +4,8 @@ import rasterio
 import os
 import pandas as pd
 import numpy as np
+import shapely
+from scipy.spatial import cKDTree
 
 def find_file(base_path: str, file_ending: str) -> str:
     for root, _, files in os.walk(base_path):
@@ -76,6 +78,23 @@ result = rasterio.open('temp/xd.tif')
 band = result.read(1)
 band = np.zeros(band.shape)
 
-# save buildings to buildings.gpkg
-# buildings_frame.to_file('buildings.gpkg')
+transform = result.transform
 
+building_coords = np.array([(geom.centroid.x, geom.centroid.y) for geom in buildings_frame.geometry])
+tree = cKDTree(building_coords)
+
+# Preallocate the distances array
+distances = np.zeros(band.shape)
+
+# Generate an array of all pixel coordinates
+pixel_coords = np.array([rasterio.transform.xy(transform, j, i) for j in range(band.shape[0]) for i in range(band.shape[1])])
+
+# Convert pixel coordinates to a numpy array
+pixel_coords = np.array(pixel_coords)
+
+# Query the nearest building for each pixel
+dist, _ = tree.query(pixel_coords, k=1)
+
+# Reshape the distance array back to the raster's shape
+distances = dist.reshape(band.shape)
+print(distances)
