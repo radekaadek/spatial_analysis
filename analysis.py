@@ -1,3 +1,4 @@
+import subprocess
 from typing import Sequence
 import geopandas as gpd
 import rasterio
@@ -20,9 +21,9 @@ def read_and_concat_files(file_names: Sequence[str]) -> pd.DataFrame:
 
 # get area of analysis
 
+luban_name = '02_GML/0210_GML'
+lwowecki_name = '02_GML/0212_GML'
 def process_feature(feature_name: str, area_polygon: gpd.GeoDataFrame) -> pd.DataFrame:
-    luban_name = '02_GML/0210_GML'
-    lwowecki_name = '02_GML/0212_GML'
     f1 = find_file(luban_name, feature_name)
     f2 = find_file(lwowecki_name, feature_name)
     feature = read_and_concat_files([f1, f2])
@@ -72,29 +73,46 @@ plac_frame = process_feature(plac, area_polygon)
 skladowisko_odpadow_frame = process_feature(skladowisko_odpadow, area_polygon)
 wyrobisko_frame = process_feature(wyrobisko, area_polygon)
 
+# saave all frames to file
+vector_dir = 'vectors'
+if not os.path.exists(vector_dir):
+    os.mkdir(vector_dir)
+
+rivers_frame.to_file(f'{vector_dir}/rivers.gpkg')
+buildings_frame.to_file(f'{vector_dir}/buildings.gpkg')
+woda_powierzchnia_frame.to_file(f'{vector_dir}/woda_powierzchnia.gpkg')
+zabudowa_frame.to_file(f'{vector_dir}/zabudowa.gpkg')
+teren_lesny_frame.to_file(f'{vector_dir}/teren_lesny.gpkg')
+roslinnosc_krzewiasta_frame.to_file(f'{vector_dir}/roslinnosc_krzewiasta.gpkg')
+teren_pod_drogami_frame.to_file(f'{vector_dir}/teren_pod_drogami.gpkg')
+grunt_nieuzytkowy_frame.to_file(f'{vector_dir}/grunt_nieuzytkowy.gpkg')
+plac_frame.to_file(f'{vector_dir}/plac.gpkg')
+skladowisko_odpadow_frame.to_file(f'{vector_dir}/skladowisko_odpadow.gpkg')
+wyrobisko_frame.to_file(f'{vector_dir}/wyrobisko.gpkg')
+
 
 # load the dem
 result = rasterio.open('temp/xd.tif')
 band = result.read(1)
+band_shape = band.shape
 band = np.zeros(band.shape)
 
-transform = result.transform
 
-building_coords = np.array([(geom.centroid.x, geom.centroid.y) for geom in buildings_frame.geometry])
-tree = cKDTree(building_coords)
 
-# Preallocate the distances array
-distances = np.zeros(band.shape)
 
-# Generate an array of all pixel coordinates
-pixel_coords = np.array([rasterio.transform.xy(transform, j, i) for j in range(band.shape[0]) for i in range(band.shape[1])])
+raster_dir = 'rasters'
+if not os.path.exists(raster_dir):
+    os.mkdir(raster_dir)
+# gdal_rasterize -burn 1 -ts 1641 1280  -te <xmin> <ymin> <xmax> <ymax> 02_GML/0210_GML/PL.PZGiK.337.0210/BDOT10k/PL.PZGiK.337.0210__OT_BUBD_A.xml here.tif
 
-# Convert pixel coordinates to a numpy array
-pixel_coords = np.array(pixel_coords)
+# rasterize all features
+for vector_file in os.listdir(vector_dir):
+    file_path = f'{vector_dir}/{vector_file}'
+    feature = vector_file.split('.')[0]
+    bounds = result.bounds
+    gdal_command = f"gdal_rasterize -burn 1 -ts {band_shape[0]} {band_shape[1]} -te {bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]} {file_path} {raster_dir}/{feature}.tif"
+    subprocess.run(gdal_command, shell=True)
 
-# Query the nearest building for each pixel
-dist, _ = tree.query(pixel_coords, k=1)
 
-# Reshape the distance array back to the raster's shape
-distances = dist.reshape(band.shape)
-print(distances)
+
+
