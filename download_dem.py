@@ -9,7 +9,7 @@ buffer_dir = 'vectors'
 if not os.path.exists(buffer_dir):
     os.mkdir(buffer_dir)
 
-file_name = 'mydata/border_2180.shp'
+file_name = 'vectors/border_2180.gpkg'
 
 df = gpd.read_file(file_name)
 # reproject to epsg:2180

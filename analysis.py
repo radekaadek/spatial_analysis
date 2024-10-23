@@ -1,12 +1,11 @@
 import subprocess
-from typing import Sequence
-import geopandas as gpd
-import rasterio
 import os
-import pandas as pd
-import numpy as np
 import shapely
-from scipy.spatial import cKDTree
+import rasterio
+import numpy as np
+import pandas as pd
+import geopandas as gpd
+from typing import Sequence
 
 def find_file(base_path: str, file_ending: str) -> str:
     for root, _, files in os.walk(base_path):
@@ -84,7 +83,7 @@ result = rasterio.open(dem_path)
 band = result.read(1)
 band_shape = band.shape
 bounds = result.bounds
-area_polygon = gpd.GeoDataFrame(geometry=[shapely.geometry.box(*bounds)])
+area_polygon = gpd.GeoDataFrame(geometry=[shapely.geometry.box(*bounds)]).set_crs("EPSG:2180")
 
 rivers_frame = process_feature(rivers, area_polygon)
 buildings_frame = process_feature(buildings, area_polygon)
@@ -114,7 +113,6 @@ grunt_nieuzytkowy_frame.to_file(f'{vector_dir}/grunt_nieuzytkowy.gpkg')
 plac_frame.to_file(f'{vector_dir}/plac.gpkg')
 skladowisko_odpadow_frame.to_file(f'{vector_dir}/skladowisko_odpadow.gpkg')
 wyrobisko_frame.to_file(f'{vector_dir}/wyrobisko.gpkg')
-
 
 
 
@@ -176,7 +174,7 @@ penalty_mask = (~np.isnan(result_band))
 result_band[penalty_mask] += water_distances[penalty_mask] * 0.5
 
 #### BUFFER ####
-buffer_raster = rasterio.open(f'{distances_dir}/buffer.tif')
+buffer_raster = rasterio.open(f'{distances_dir}/border_2180.tif')
 result_band[buffer_raster.read(1) > 0] = np.nan
 
 
@@ -184,8 +182,5 @@ print(result_band)
 result_profile = result.profile
 with rasterio.open("result.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
-
-
-
 
 
