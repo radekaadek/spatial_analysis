@@ -1,0 +1,76 @@
+Analizy przestrzenne to zbiór metod
+i narzędzi do wykonywania operacji na danych
+przestrzennych w celu uzyskania dodatkowych informacji,
+które mogą pomóc decydentom w zarządzaniu terenem
+
+Rodzaje analiz przestrzennych:
+• Proste wyszukiwanie obiektów (pomocnicze)
+• Poprzez lokalizację (określenie współrzędnych lub wskazanie obiektu)
+• Poprzez atrybuty (selekcja prosta lub konstruowanie zapytań)
+• Selekcja obiektów w zadanych obszarach, obliczanie statystyk w zadanych
+obszarach
+
+podstawowe kategorie analiz przestrzennych /1/:
+• proste analizy wykorzystujące wyszukiwanie obiektów (lepiej
+byłoby określić tę grupę w skrócie jako proste analizy danych):
+• poprzez atrybuty (selekcja prosta lub konstruowanie
+złożonych zapytań),
+• poprzez lokalizację (określenie współrzędnych lub wskazanie
+obiektu),
+• selekcja obiektów w zadanych obszarach, obliczanie statystyk
+w zadanych obszarach,
+• analizy odległości i sąsiedztwa (kontekstu), buforowanie,
+• algebra map* - nakładanie, przecinanie, łączenie warstw,
+• analizy w oparciu o wykorzystanie danych NMT (NMPT); analizy
+3D,
+• analizy wielokryterialne
+• analizy przydatności terenu dla określonego celu (inwestycji,
+obszarów pod budownictwo, uprawy, innej działalności, itp.),
+• wyznaczanie optymalnej lokalizacji, analiza dla celów
+konfliktowych,
+• analizy porównawcze – wybór najlepszego wariantu (np.
+drogi),
+• analizy zmian (np. pokrycia terenu, zagospodarowania),
+• analizy krajobrazu, badanie zmian struktury,
+• projektowanie optymalnego połączenia (np. drogi) na określonej
+powierzchni
+(z uwzględnieniem analizy kosztów; rastrowy model danych),
+• analizy sieciowe (wektorowy model danych),
+
+Wyznaczanie obszarów przydatnych dla określonego celu.
+(ang. Suitability mapping) - Mapa przydatności ukazuje te obszary, które są przydatne dla
+określonego celu zdefiniowanego poprzez zestaw kryteriów.
+Seria warstw, każda reprezentująca obszar spełniający
+określone kryterium, jest tworzona w najprostszym przypadku
+analizy jako boolean image - obraz o wartościach pikseli 0 lub 1
+
+Kryteria ostre określają rodzaj ograniczenia (ang. constraints) i
+na gruncie logiki Boole’a mają rozstrzygnięcia ‘0’ (fałsz) lub ‘1’
+(prawda).
+’stopniowanie’ przydatności - kryteria miękkie
+Narzędzia do kryteriów ostrych i miękkich w ArcGIS zaczynają się na Fuzzy, Fuzzy Membership
+
+WLC - Weighted Linear Combination, łączenie kryteriów z wagami ze sobą
+
+‘optymalne połączenie’ - najtańszą (koszty poprowadzenia)
+Obraz kosztów względnych - ArcGIS cost raster - Koszty związane z budową połączenia drogowego
+Obraz kosztów skumulowanych - ArcGIS cost distance raster - polega na odpowiednim ’przemieszczaniu’ się po powierzchni kosztów względnych w odniesieniu do pikseli oznaczających ’source’ z równoczesnym kumulowaniem wartości ‘odległości’ ważonych kosztami
+Przebieg połączenia – least cost path - ArcGIS cost path - optymalne połączenie o najniższych wartościach kosztów, najmniejszego oporu
+
+Podstawowe etapy w metodzie AHP:
+1) analiza i opis problemu, struktury problemu w postaci hierarchii,
+2) przeprowadzenie porównań ważności kryteriów parami z wykorzystaniem skali punktowej (9 poziomów),
+3) obliczenie wag.
+
+Obliczenie wartości wag kryteriów opiera się na pomocniczej
+operacji porównywania ‘ważności’ kryteriów parami, co stanowi
+określoną część procedury obliczeniowej w metodzie AHP. Dla
+danej pary, jest to względne wskazanie znaczenia dwóch
+analizowanych kryteriów
+
+skumulowany koszt to taka mapa zasięgów,
+koszty względne to taka mapa trudności przebycia odległości
+
+! Najważniejszą funkcją GIS jest dostarczanie
+decydentom informacji (o charakterze przestrzennym) !
+
