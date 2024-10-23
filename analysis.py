@@ -175,6 +175,9 @@ result_band[water_distances <= 100] = np.nan
 penalty_mask = (~np.isnan(result_band))
 result_band[penalty_mask] += water_distances[penalty_mask] * 0.5
 
+#### BUFFER ####
+buffer_raster = rasterio.open(f'{distances_dir}/buffer.tif')
+result_band[buffer_raster.read(1) > 0] = np.nan
 
 
 print(result_band)
