@@ -57,6 +57,7 @@ plac = 'PTPL_A.xml'
 skladowisko_odpadow = 'PTSO_A.xml'
 wyrobisko = 'PTWZ_A.xml'
 pozostale = 'PTNZ_A.xml'
+droga = 'SKDR_L.xml'
 
 
 name_to_xml_name = {
@@ -96,6 +97,7 @@ grunt_nieuzytkowy_frame = process_feature(grunt_nieuzytkowy, area_polygon)
 plac_frame = process_feature(plac, area_polygon)
 skladowisko_odpadow_frame = process_feature(skladowisko_odpadow, area_polygon)
 wyrobisko_frame = process_feature(wyrobisko, area_polygon)
+droga_frame = process_feature(droga, area_polygon)
 
 # saave all frames to file
 vector_dir = 'vectors'
@@ -113,6 +115,7 @@ grunt_nieuzytkowy_frame.to_file(f'{vector_dir}/grunt_nieuzytkowy.gpkg')
 plac_frame.to_file(f'{vector_dir}/plac.gpkg')
 skladowisko_odpadow_frame.to_file(f'{vector_dir}/skladowisko_odpadow.gpkg')
 wyrobisko_frame.to_file(f'{vector_dir}/wyrobisko.gpkg')
+droga_frame.to_file(f'{vector_dir}/droga.gpkg')
 
 
 
@@ -153,6 +156,11 @@ for file in os.listdir(raster_dir):
     output_path = f'{distances_dir}/{feature}.tif'
     calculate_distance(file_path, output_path)
 
+# dem slope raster
+dem_raster_path = f'{raster_dir}/dem_original.tif'
+gdal_command = f'gdaldem slope {dem_raster_path} {raster_dir}/slope.tif'
+os.system(gdal_command)
+
 result_band = np.zeros(band.shape)
 
 #### BUILDINGS ####
@@ -166,17 +174,52 @@ result_band[penalty_mask] += 400 - building_distances[penalty_mask] * 2
 #### WATER ####
 # water - at <100 meters set nodata
 # the closer to the water, the better
-water_raster = rasterio.open(f'{distances_dir}/rivers.tif')
-water_distances = water_raster.read(1)*pixel_size
+rivers_raster = rasterio.open(f'{distances_dir}/rivers.tif')
+water_distances = rivers_raster.read(1)*pixel_size
+lake_raster = rasterio.open(f'{distances_dir}/woda_powierzchnia.tif')
+water_distances = np.minimum(water_distances, lake_raster.read(1)*pixel_size)
 result_band[water_distances <= 100] = np.nan
 # dont forget to check if nodata is set
 penalty_mask = (~np.isnan(result_band))
 result_band[penalty_mask] += water_distances[penalty_mask] * 0.5
 
-#### BUFFER ####
-buffer_raster = rasterio.open(f'{distances_dir}/border_2180.tif')
-result_band[buffer_raster.read(1) > 0] = np.nan
+#### BORDER ####
+border_raster = rasterio.open(f'{distances_dir}/border_2180.tif')
+result_band[border_raster.read(1) > 0] = np.nan
 
+#### FOREST ####
+forest_raster = rasterio.open(f'{distances_dir}/teren_lesny.tif')
+# forest at <15 meters set nodata
+forest_distances = forest_raster.read(1)*pixel_size
+result_band[forest_distances <= 15] = np.nan
+# forest at >15 <100
+penalty_mask = (forest_distances > 15) & (forest_distances < 100)
+result_band[penalty_mask] += 50 - forest_distances[penalty_mask] * 0.5
+
+
+#### ROADS ####
+roads_raster = rasterio.open(f'{distances_dir}/droga.tif')
+roads_distances = roads_raster.read(1)*pixel_size
+road_mask = (roads_distances <= 10)
+result_band[road_mask] = np.nan
+penalty_mask = (roads_distances > 15)
+result_band[penalty_mask] += roads_distances[penalty_mask] * 0.5
+
+
+#### SLOPE ####
+slope_raster = rasterio.open(f'{distances_dir}/slope.tif')
+slope_deg = slope_raster.read(1)
+result_band[slope_deg > 10] = np.nan
+penalty_mask = (slope_deg <= 10)
+result_band[penalty_mask] += slope_deg[penalty_mask] * 4
+
+
+# minmax scale
+minmax_scaled = np.nanmin(result_band), np.nanmax(result_band)
+result_band = (result_band - minmax_scaled[0]) / (minmax_scaled[1] - minmax_scaled[0])
+result_band = 1 - result_band
+
+# result_band = np.nan_to_num(result_band)
 
 print(result_band)
 result_profile = result.profile
