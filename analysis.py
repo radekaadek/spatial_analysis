@@ -260,9 +260,9 @@ with rasterio.open("result2.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
 
 # sieve pixels
-min_area = 200
+min_area = 50
 pixel_area = pixel_size * pixel_size
-pixels = math.ceil(pixel_area / min_area)
+pixels = math.ceil(min_area / pixel_area)
 gdal_command = f"gdal_sieve.py -st 5 result2.tif result3.tif"
 subprocess.run(gdal_command, shell=True)
 
