@@ -1,3 +1,4 @@
+import math
 import subprocess
 import os
 import shapely
@@ -88,6 +89,8 @@ area_polygon = gpd.GeoDataFrame(geometry=[shapely.geometry.box(*bounds)]).set_cr
 
 rivers_frame = process_feature(rivers, area_polygon)
 buildings_frame = process_feature(buildings, area_polygon)
+# select funkcjaOgolnaBudynku == 'budynki mieszkalne'
+buildings_frame = buildings_frame[buildings_frame['funkcjaOgolnaBudynku'] == 'budynki mieszkalne']
 woda_powierzchnia_frame = process_feature(woda_powierzchnia, area_polygon)
 zabudowa_frame = process_feature(zabudowa, area_polygon)
 teren_lesny_frame = process_feature(teren_lesny, area_polygon)
@@ -98,6 +101,15 @@ plac_frame = process_feature(plac, area_polygon)
 skladowisko_odpadow_frame = process_feature(skladowisko_odpadow, area_polygon)
 wyrobisko_frame = process_feature(wyrobisko, area_polygon)
 droga_frame = process_feature(droga, area_polygon)
+# print(droga_frame
+# droga_frame = droga_frame[['materialNawierzchni'] not in {'masa bitumiczna', 'beton', 'kostka prefabrykowana', 'tłuczeń', 'płyty betonowe', 'kostka kamienna', 'bruk'}]
+# ['grunt naturalny' 'masa bitumiczna' 'beton' 'żwir'
+#  'kostka prefabrykowana' 'tłuczeń' 'płyty betonowe' 'kostka kamienna'
+#  'bruk']
+
+drogi_hard_names = ['masa bitumiczna', 'beton', 'kostka prefabrykowana', 'tłuczeń', 'płyty betonowe', 'kostka kamienna', 'bruk']
+for name in drogi_hard_names:
+    droga_frame = droga_frame[droga_frame['materialNawierzchni'] != name]
 
 # saave all frames to file
 vector_dir = 'vectors'
@@ -125,11 +137,11 @@ if not os.path.exists(raster_dir):
     os.mkdir(raster_dir)
 
 # rasterize all features
-for vector_file in os.listdir(vector_dir):
-    file_path = f'{vector_dir}/{vector_file}'
-    feature = vector_file.split('.')[0]
-    gdal_command = f"gdal_rasterize -burn 1 -ts {band_shape[1]} {band_shape[0]} -te {bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]} {file_path} {raster_dir}/{feature}.tif"
-    subprocess.run(gdal_command, shell=True)
+# for vector_file in os.listdir(vector_dir):
+#     file_path = f'{vector_dir}/{vector_file}'
+#     feature = vector_file.split('.')[0]
+#     gdal_command = f"gdal_rasterize -burn 1 -ts {band_shape[1]} {band_shape[0]} -te {bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]} {file_path} {raster_dir}/{feature}.tif"
+#     subprocess.run(gdal_command, shell=True)
 
 # # calculate distance to nearest feature for each pixel
 # building_distances = np.zeros(band.shape)
@@ -159,6 +171,10 @@ for file in os.listdir(raster_dir):
 # dem slope raster
 dem_raster_path = f'{raster_dir}/dem_original.tif'
 gdal_command = f'gdaldem slope {dem_raster_path} {raster_dir}/slope.tif'
+os.system(gdal_command)
+
+# dem aspect raster
+gdal_command = f'gdaldem aspect {dem_raster_path} {raster_dir}/aspect.tif'
 os.system(gdal_command)
 
 result_band = np.zeros(band.shape)
@@ -213,17 +229,41 @@ result_band[slope_deg > 10] = np.nan
 penalty_mask = (slope_deg <= 10)
 result_band[penalty_mask] += slope_deg[penalty_mask] * 4
 
+#### ASPECT ####
+aspect_raster = rasterio.open(f'{raster_dir}/aspect.tif')
+aspect_deg = aspect_raster.read(1)
+# optymalnie: stoki poludniowe SW-SE
+result_band[aspect_deg > 0] += abs(aspect_deg[aspect_deg > 0] - 180)
+
 
 # minmax scale
 minmax_scaled = np.nanmin(result_band), np.nanmax(result_band)
 result_band = (result_band - minmax_scaled[0]) / (minmax_scaled[1] - minmax_scaled[0])
 result_band = 1 - result_band
 
-# result_band = np.nan_to_num(result_band)
+result_band = np.nan_to_num(result_band)
 
 print(result_band)
 result_profile = result.profile
 with rasterio.open("result.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
+
+# select the top % of all values, including nan values
+percent = 0.20
+percent_value = 1 - percent
+
+# set to 1 or 0
+result_band[result_band >= percent_value] = 1
+result_band[result_band < percent_value] = 0
+
+with rasterio.open("result2.tif", "w", **result_profile) as dst:
+    dst.write(result_band, 1)
+
+# sieve pixels
+min_area = 200
+pixel_area = pixel_size * pixel_size
+pixels = math.ceil(pixel_area / min_area)
+gdal_command = f"gdal_sieve.py -st 5 result2.tif result3.tif"
+subprocess.run(gdal_command, shell=True)
 
 
