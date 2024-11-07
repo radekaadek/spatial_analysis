@@ -143,16 +143,6 @@ for vector_file in os.listdir(vector_dir):
     gdal_command = f"gdal_rasterize -burn 1 -ts {band_shape[1]} {band_shape[0]} -te {bounds[0]} {bounds[1]} {bounds[2]} {bounds[3]} {file_path} {raster_dir}/{feature}.tif"
     subprocess.run(gdal_command, shell=True)
 
-# calculate distance to nearest feature for each pixel
-building_distances = np.zeros(band.shape)
-work_dir = 'working'
-if not os.path.exists(work_dir):
-    os.mkdir(work_dir)
-file_path = f'{raster_dir}/buildings.tif'
-building_distances_path = f'{work_dir}/building_distances.tif'
-gdal_command = f"gdal_proximity.py {file_path} {building_distances_path}"
-subprocess.run(gdal_command, shell=True)
-
 def calculate_distance(raster_path: str, output_path: str) -> None:
     gdal_command = f"gdal_proximity.py {raster_path} {output_path}"
     subprocess.run(gdal_command, shell=True)
