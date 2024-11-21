@@ -3,6 +3,7 @@ import subprocess
 import os
 import shapely
 import rasterio
+import requests
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -76,7 +77,7 @@ name_to_xml_name = {
     'pozostale': 'PTNZ_A.xml'
 }
 
-
+vector_dir = 'vectors'
 
 # area_polygon = gpd.read_file('swieradow_buffer/swieradow_buffer.shp')
 # load the dem
@@ -101,27 +102,36 @@ plac_frame = process_feature(plac, area_polygon)
 skladowisko_odpadow_frame = process_feature(skladowisko_odpadow, area_polygon)
 wyrobisko_frame = process_feature(wyrobisko, area_polygon)
 droga_frame = process_feature(droga, area_polygon)
-# fully print the first row
-for column in droga_frame.columns:
-    print(f"{column}: {droga_frame.iloc[0][column]}")
+# read vectors/dzialki.gpkg
+dzialki = gpd.read_file(f"{vector_dir}/dzialki.gpkg")
+dzialki_frame = dzialki.clip(area_polygon)
+
+
+all_roads = droga_frame.copy()
+
+good_roads = droga_frame
+good_roads = good_roads[good_roads['kategoriaZarzadzania'].isin(['wojewódzka'])]
 roads_geometry = droga_frame['geometry']
 roads_now = gpd.GeoDataFrame(columns=['geometry'], geometry='geometry', crs=droga_frame.crs)
-intersections = []
-for i, row in droga_frame.iterrows():
+intersections = gpd.GeoDataFrame(columns=['geometry'], geometry='geometry', crs=droga_frame.crs)
+for i, row in good_roads.iterrows():
     inter = row['geometry'].intersection(roads_geometry)
     # delete all geometries that are not points
     inter = inter[~inter.is_empty]
     inter = inter[inter.geom_type == 'Point']
-    intersections.append(inter)
+    try:
+        g = next(iter(inter))
+        intersections.at[i, 'geometry'] = g
+    except StopIteration:
+        pass
     roads_now._append(row)
-print(intersections)
+
 
 drogi_hard_names = ['masa bitumiczna', 'beton', 'kostka prefabrykowana', 'tłuczeń', 'płyty betonowe', 'kostka kamienna', 'bruk']
 for name in drogi_hard_names:
     droga_frame = droga_frame[droga_frame['materialNawierzchni'] != name]
 
 # saave all frames to file
-vector_dir = 'vectors'
 if not os.path.exists(vector_dir):
     os.mkdir(vector_dir)
 
@@ -137,6 +147,10 @@ plac_frame.to_file(f'{vector_dir}/plac.gpkg')
 skladowisko_odpadow_frame.to_file(f'{vector_dir}/skladowisko_odpadow.gpkg')
 wyrobisko_frame.to_file(f'{vector_dir}/wyrobisko.gpkg')
 droga_frame.to_file(f'{vector_dir}/droga.gpkg')
+all_roads.to_file(f'{vector_dir}/all_roads.gpkg')
+intersections.to_file(f'{vector_dir}/intersections.gpkg')
+dzialki_frame.to_file(f'{vector_dir}/dzialki.gpkg')
+
 
 
 
@@ -234,6 +248,13 @@ aspect_deg = aspect_raster.read(1)
 # optymalnie: stoki poludniowe SW-SE
 result_band[aspect_deg > 0] += abs(aspect_deg[aspect_deg > 0] - 180)
 
+#### INTERSECTIONS ####
+# the further away from an intersection the worse
+intersections_raster = rasterio.open(f'{distances_dir}/intersections.tif')
+intersections_distances = intersections_raster.read(1)*pixel_size
+penalty_mask = (intersections_distances >= 0)
+result_band[penalty_mask] += intersections_distances[penalty_mask] * 0.25
+
 
 # minmax scale
 minmax_scaled = np.nanmin(result_band), np.nanmax(result_band)
@@ -242,7 +263,6 @@ result_band = 1 - result_band
 
 result_band = np.nan_to_num(result_band)
 
-print(result_band)
 result_profile = result.profile
 with rasterio.open("result.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
@@ -264,5 +284,18 @@ pixel_area = pixel_size * pixel_size
 pixels = math.ceil(min_area / pixel_area)
 gdal_command = f"gdal_sieve.py -st 5 result2.tif result3.tif"
 subprocess.run(gdal_command, shell=True)
+
+# read result3 with rasterio
+result3 = rasterio.open("result3.tif")
+result3_band = result3.read(1)
+t = result3.transform
+
+# get indexes where result3 is 1
+result3_indexes = np.where(result3_band == 1)
+points = rasterio.transform.xy(t, *result3_indexes)
+
+
+
+# get the coordinates of the indexes
 
 
