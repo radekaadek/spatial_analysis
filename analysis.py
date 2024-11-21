@@ -101,11 +101,20 @@ plac_frame = process_feature(plac, area_polygon)
 skladowisko_odpadow_frame = process_feature(skladowisko_odpadow, area_polygon)
 wyrobisko_frame = process_feature(wyrobisko, area_polygon)
 droga_frame = process_feature(droga, area_polygon)
-# print(droga_frame
-# droga_frame = droga_frame[['materialNawierzchni'] not in {'masa bitumiczna', 'beton', 'kostka prefabrykowana', 'tłuczeń', 'płyty betonowe', 'kostka kamienna', 'bruk'}]
-# ['grunt naturalny' 'masa bitumiczna' 'beton' 'żwir'
-#  'kostka prefabrykowana' 'tłuczeń' 'płyty betonowe' 'kostka kamienna'
-#  'bruk']
+# fully print the first row
+for column in droga_frame.columns:
+    print(f"{column}: {droga_frame.iloc[0][column]}")
+roads_geometry = droga_frame['geometry']
+roads_now = gpd.GeoDataFrame(columns=['geometry'], geometry='geometry', crs=droga_frame.crs)
+intersections = []
+for i, row in droga_frame.iterrows():
+    inter = row['geometry'].intersection(roads_geometry)
+    # delete all geometries that are not points
+    inter = inter[~inter.is_empty]
+    inter = inter[inter.geom_type == 'Point']
+    intersections.append(inter)
+    roads_now._append(row)
+print(intersections)
 
 drogi_hard_names = ['masa bitumiczna', 'beton', 'kostka prefabrykowana', 'tłuczeń', 'płyty betonowe', 'kostka kamienna', 'bruk']
 for name in drogi_hard_names:
