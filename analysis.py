@@ -152,7 +152,16 @@ intersections.to_file(f'{vector_dir}/intersections.gpkg')
 dzialki_frame.to_file(f'{vector_dir}/dzialki.gpkg')
 
 
-
+weights = {
+    'dzialki': 1,
+    'odleglosc_budynkow': 1,
+    'pokrycie': 1,
+    'dostep_drog': 1,
+    'nachylenie': 1,
+    'dostep_swiatla': 1,
+    'dostep_drog': 1,
+    'intersections': 1,
+}
 
 
 raster_dir = 'rasters'
@@ -198,7 +207,7 @@ buildings_raster = rasterio.open(f'{distances_dir}/buildings.tif')
 building_distances = buildings_raster.read(1)*pixel_size
 result_band[building_distances <= 150] = np.nan
 penalty_mask = (150 < building_distances) & (building_distances < 200)
-result_band[penalty_mask] += 400 - building_distances[penalty_mask] * 2
+result_band[penalty_mask] += (400 - building_distances[penalty_mask] * 2)*weights['dzialki']
 
 #### WATER ####
 # water - at <100 meters set nodata
@@ -210,7 +219,7 @@ water_distances = np.minimum(water_distances, lake_raster.read(1)*pixel_size)
 result_band[water_distances <= 100] = np.nan
 # dont forget to check if nodata is set
 penalty_mask = (~np.isnan(result_band))
-result_band[penalty_mask] += water_distances[penalty_mask] * 0.5
+result_band[penalty_mask] += (water_distances[penalty_mask] * 0.5)*weights['odleglosc_budynkow']
 
 #### BORDER ####
 border_raster = rasterio.open(f'{distances_dir}/border_2180.tif')
@@ -223,16 +232,16 @@ forest_distances = forest_raster.read(1)*pixel_size
 result_band[forest_distances <= 15] = np.nan
 # forest at >15 <100
 penalty_mask = (forest_distances > 15) & (forest_distances < 100)
-result_band[penalty_mask] += 50 - forest_distances[penalty_mask] * 0.5
+result_band[penalty_mask] += (50 - forest_distances[penalty_mask] * 0.5)*weights['nachylenie']
 
 
 #### ROADS ####
-roads_raster = rasterio.open(f'{distances_dir}/droga.tif')
+roads_raster = rasterio.open(f'{distances_dir}/all_roads.tif')
 roads_distances = roads_raster.read(1)*pixel_size
 road_mask = (roads_distances <= 10)
 result_band[road_mask] = np.nan
 penalty_mask = (roads_distances > 15)
-result_band[penalty_mask] += roads_distances[penalty_mask] * 0.5
+result_band[penalty_mask] += (roads_distances[penalty_mask] * 0.5)*weights['dostep_drog']
 
 
 #### SLOPE ####
@@ -240,20 +249,20 @@ slope_raster = rasterio.open(f'{distances_dir}/slope.tif')
 slope_deg = slope_raster.read(1)
 result_band[slope_deg > 10] = np.nan
 penalty_mask = (slope_deg <= 10)
-result_band[penalty_mask] += slope_deg[penalty_mask] * 4
+result_band[penalty_mask] += (slope_deg[penalty_mask] * 4)*weights['pokrycie']
 
 #### ASPECT ####
 aspect_raster = rasterio.open(f'{raster_dir}/aspect.tif')
 aspect_deg = aspect_raster.read(1)
 # optymalnie: stoki poludniowe SW-SE
-result_band[aspect_deg > 0] += abs(aspect_deg[aspect_deg > 0] - 180)
+result_band[aspect_deg > 0] += (abs(aspect_deg[aspect_deg > 0] - 180))*weights['dostep_swiatla']
 
 #### INTERSECTIONS ####
 # the further away from an intersection the worse
 intersections_raster = rasterio.open(f'{distances_dir}/intersections.tif')
 intersections_distances = intersections_raster.read(1)*pixel_size
 penalty_mask = (intersections_distances >= 0)
-result_band[penalty_mask] += intersections_distances[penalty_mask] * 0.25
+result_band[penalty_mask] += (intersections_distances[penalty_mask] * 0.25)*weights['intersections']
 
 
 # minmax scale
@@ -268,7 +277,7 @@ with rasterio.open("result.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
 
 # select the top % of all values, including nan values
-percent = 0.20
+percent = 0.40
 percent_value = 1 - percent
 
 # set to 1 or 0
