@@ -163,6 +163,11 @@ weights = {
     'intersections': 1,
 }
 
+# normalize weights so that sum of weights is 1
+weights_sum = sum(weights.values())
+for key, value in weights.items():
+    weights[key] = value/weights_sum
+
 
 raster_dir = 'rasters'
 if not os.path.exists(raster_dir):
@@ -277,7 +282,7 @@ with rasterio.open("result.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
 
 # select the top % of all values, including nan values
-percent = 0.40
+percent = 0.35
 percent_value = 1 - percent
 
 # set to 1 or 0
@@ -303,8 +308,13 @@ t = result3.transform
 result3_indexes = np.where(result3_band == 1)
 points = rasterio.transform.xy(t, *result3_indexes)
 
+# get indices where result3 is 1
+result3_indexes = np.where(result3_band == 1)
 
+print(result3_indexes)
 
-# get the coordinates of the indexes
+for index in result3_indexes:
+    point = rasterio.transform.xy(t, *index)
+    print(point)
 
 
