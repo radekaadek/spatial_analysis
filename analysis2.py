@@ -3,7 +3,6 @@ import subprocess
 import os
 import shapely
 import rasterio
-import requests
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -119,7 +118,7 @@ for i, row in good_roads.iterrows():
     # delete all geometries that are not points
     inter = inter[~inter.is_empty]
     inter = inter[inter.geom_type == 'Point']
-    try:
+    try: 
         g = next(iter(inter))
         intersections.at[i, 'geometry'] = g
     except StopIteration:
@@ -152,7 +151,7 @@ intersections.to_file(f'{vector_dir}/intersections.gpkg')
 dzialki_frame.to_file(f'{vector_dir}/dzialki.gpkg')
 
 
-weights = {
+weights: dict[str, float] = {
     'dzialki': 1,
     'odleglosc_budynkow': 1,
     'pokrycie': 1,
@@ -304,20 +303,12 @@ result3 = rasterio.open("result3.tif")
 result3_band = result3.read(1)
 t = result3.transform
 
-# get indexes where result3 is 1
-result3_indexes = np.where(result3_band == 1)
-points = rasterio.transform.xy(t, *result3_indexes)
-
 # get indices where result3 is 1
 result3_indexes = np.where(result3_band == 1)
 
 print(result3_indexes)
 points = rasterio.transform.xy(t, result3_indexes[0], result3_indexes[1])
 print(points)
-
-for index in result3_indexes:
-    point = rasterio.transform.xy(t, *index)
-    print(point)
 
 
 
