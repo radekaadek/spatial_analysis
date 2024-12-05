@@ -306,9 +306,18 @@ t = result3.transform
 # get indices where result3 is 1
 result3_indexes = np.where(result3_band == 1)
 
-print(result3_indexes)
-points = rasterio.transform.xy(t, result3_indexes[0], result3_indexes[1])
-print(points)
+points = list(zip(*rasterio.transform.xy(t, result3_indexes[0], result3_indexes[1])))
+
+xs, ys = zip(*points)
+shapely_points = [shapely.geometry.Point(x, y) for x, y in zip(xs, ys)]
+points_series = gpd.GeoSeries(shapely_points, crs=result3.crs)
+
+points_gdf = gpd.GeoDataFrame(geometry=points_series)
+
+# joint points with buildings
+dzialki_with_points = dzialki_frame.sjoin(points_gdf, how='inner', predicate='intersects')
+dzialki_with_points.to_file('dzialki_with_points.gpkg')
+
 
 
 
