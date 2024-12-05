@@ -312,6 +312,8 @@ points = rasterio.transform.xy(t, *result3_indexes)
 result3_indexes = np.where(result3_band == 1)
 
 print(result3_indexes)
+points = rasterio.transform.xy(t, result3_indexes[0], result3_indexes[1])
+print(points)
 
 for index in result3_indexes:
     point = rasterio.transform.xy(t, *index)
