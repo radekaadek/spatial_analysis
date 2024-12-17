@@ -3,6 +3,7 @@ import subprocess
 import os
 import shapely
 import rasterio
+import rasterstats
 import numpy as np
 import pandas as pd
 import geopandas as gpd
@@ -33,7 +34,9 @@ def process_feature(feature_name: str, area_polygon: gpd.GeoDataFrame) -> pd.Dat
         return gpd.GeoDataFrame()
     return clipped
 
-pixel_size = 5
+
+
+
 
 # base_name = 'PL.PZGiK.337.'
 # luban = '0210_GML'
@@ -150,17 +153,26 @@ all_roads.to_file(f'{vector_dir}/all_roads.gpkg')
 intersections.to_file(f'{vector_dir}/intersections.gpkg')
 dzialki_frame.to_file(f'{vector_dir}/dzialki.gpkg')
 
-
+#### PARAMETERS ####
+pixel_size = 5
 weights: dict[str, float] = {
     'dzialki': 1,
     'odleglosc_budynkow': 1,
-    'pokrycie': 1,
-    'dostep_drog': 1,
+    'woda': 1,
+    'las': 1,
     'nachylenie': 1,
-    'dostep_swiatla': 1,
+    'wystawa': 1,
     'dostep_drog': 1,
-    'intersections': 1,
+    'skrzyzowania': 1,
 }
+# select the top % of all values, including nan values
+percent_value = 0.65
+# procent of pixles inside parcels
+procent_of_pixels = 0.60
+# dzialka
+dzialka_area_min = 20000
+
+
 
 # normalize weights so that sum of weights is 1
 weights_sum = sum(weights.values())
@@ -223,7 +235,7 @@ water_distances = np.minimum(water_distances, lake_raster.read(1)*pixel_size)
 result_band[water_distances <= 100] = np.nan
 # dont forget to check if nodata is set
 penalty_mask = (~np.isnan(result_band))
-result_band[penalty_mask] += (water_distances[penalty_mask] * 0.5)*weights['odleglosc_budynkow']
+result_band[penalty_mask] += (water_distances[penalty_mask] * 0.5)*weights['woda']
 
 #### BORDER ####
 border_raster = rasterio.open(f'{distances_dir}/border_2180.tif')
@@ -235,8 +247,9 @@ forest_raster = rasterio.open(f'{distances_dir}/teren_lesny.tif')
 forest_distances = forest_raster.read(1)*pixel_size
 result_band[forest_distances <= 15] = np.nan
 # forest at >15 <100
-penalty_mask = (forest_distances > 15) & (forest_distances < 100)
-result_band[penalty_mask] += (50 - forest_distances[penalty_mask] * 0.5)*weights['nachylenie']
+max_forest = 100
+penalty_mask = (forest_distances > 15) & (forest_distances < max_forest)
+result_band[penalty_mask] += (max_forest - forest_distances[penalty_mask])*weights['las']
 
 
 #### ROADS ####
@@ -253,20 +266,20 @@ slope_raster = rasterio.open(f'{distances_dir}/slope.tif')
 slope_deg = slope_raster.read(1)
 result_band[slope_deg > 10] = np.nan
 penalty_mask = (slope_deg <= 10)
-result_band[penalty_mask] += (slope_deg[penalty_mask] * 4)*weights['pokrycie']
+result_band[penalty_mask] += (slope_deg[penalty_mask] * 4)*weights['nachylenie']
 
 #### ASPECT ####
 aspect_raster = rasterio.open(f'{raster_dir}/aspect.tif')
 aspect_deg = aspect_raster.read(1)
 # optymalnie: stoki poludniowe SW-SE
-result_band[aspect_deg > 0] += (abs(aspect_deg[aspect_deg > 0] - 180))*weights['dostep_swiatla']
+result_band[aspect_deg > 0] += (abs(aspect_deg[aspect_deg > 0] - 180))*weights['wystawa']
 
 #### INTERSECTIONS ####
 # the further away from an intersection the worse
 intersections_raster = rasterio.open(f'{distances_dir}/intersections.tif')
 intersections_distances = intersections_raster.read(1)*pixel_size
 penalty_mask = (intersections_distances >= 0)
-result_band[penalty_mask] += (intersections_distances[penalty_mask] * 0.25)*weights['intersections']
+result_band[penalty_mask] += (intersections_distances[penalty_mask] * 0.25)*weights['skrzyzowania']
 
 
 # minmax scale
@@ -280,9 +293,6 @@ result_profile = result.profile
 with rasterio.open("result.tif", "w", **result_profile) as dst:
     dst.write(result_band, 1)
 
-# select the top % of all values, including nan values
-percent = 0.35
-percent_value = 1 - percent
 
 # set to 1 or 0
 result_band[result_band >= percent_value] = 1
@@ -304,7 +314,7 @@ result3_band = result3.read(1)
 t = result3.transform
 
 # get indices where result3 is 1
-result3_indexes = np.where(result3_band == 1)
+result3_indexes = np.where(result_band == 1) # results before sieving
 
 points = list(zip(*rasterio.transform.xy(t, result3_indexes[0], result3_indexes[1])))
 
@@ -316,8 +326,74 @@ points_gdf = gpd.GeoDataFrame(geometry=points_series)
 
 # joint points with buildings
 dzialki_with_points = dzialki_frame.sjoin(points_gdf, how='inner', predicate='intersects')
-dzialki_with_points.to_file('dzialki_with_points.gpkg')
+
+# calcualte raster stats for dzialki_with_points.gpkg
+# get affine transform from result2.tif
+with rasterio.open("result2.tif") as src:
+    affine = src.transform
+stats = rasterstats.zonal_stats(dzialki_with_points, result_band, affine=affine, stats=['mean'])
+
+# add to dzialki_with_points.gpkg
+for (i, row), stats in zip(dzialki_with_points.iterrows(), stats):
+    dzialki_with_points.at[i, 'mean'] = stats['mean']
+
+# chooose dzialki with mean > 0.60
+dzialki_with_points = dzialki_with_points[dzialki_with_points['mean'] > procent_of_pixels]
+# take działki with area > 50
+dzialki_with_points['area'] = dzialki_with_points.geometry.area
+# delete dzialki with duplicate ID_DZIALKI
+dzialki_with_points = dzialki_with_points.drop_duplicates(subset='ID_DZIALKI')
+dzialki_with_points.to_file('dzialki_mean.gpkg')
 
 
+# load kody.geojson
+kody = gpd.read_file('kody.geojson')
+unique_kody = list(kody['X_KOD'].unique())
+kod_name = {i+1: kod for i, kod in enumerate(unique_kody)}
+# reverse dictionary
+name_kod = {v: k for k, v in kod_name.items()}
 
+def get_kod_name(kod: str) -> int:
+    x_kod_to_koszt = {
+        "PTWP01": 99999,
+        "PTWP02": 200,
+        "PTWP03": 99999,
+        "PTZB02": 100,
+        "PTZB01": 200,
+        "PTZB05": 50,
+        "PTZB04": 200,
+        "PTZB03": 200,
+        "PTLZ01": 100,
+        "PTLZ02": 50,
+        "PTLZ03": 50,
+        "PTRK01": 15,
+        "PTRK02": 15,
+        "PTUT03": 100,
+        "PTUT02": 90,
+        "PTUT04": 20,
+        "PTUT05": 20,
+        "PTUT01": 99999,
+        "PTTR02": 1,
+        "PTTR01": 20,
+        "PTKM02": 200,
+        "PTKM01": 100,
+        "PTKM03": 200,
+        "PTKM04": 99999,
+        "PTGN01": 1,
+        "PTGN02": 1,
+        "PTGN03": 1,
+        "PTGN04": 1,
+        "PTPL01": 50,
+        "PTSO01": 99999,
+        "PTSO02": 99999,
+        "PTWZ01": 99999,
+        "PTWZ02": 99999,
+        "PTNZ01": 150,
+        "PTNZ02": 150,
+    }
+    return x_kod_to_koszt[kod]
+
+kody['kod_name'] = kody['X_KOD'].apply(get_kod_name)
+
+kody.to_file('kody2.geojson')
 
