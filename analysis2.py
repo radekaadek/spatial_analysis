@@ -62,6 +62,7 @@ skladowisko_odpadow = 'PTSO_A.xml'
 wyrobisko = 'PTWZ_A.xml'
 pozostale = 'PTNZ_A.xml'
 droga = 'SKDR_L.xml'
+power_line = 'SULN_L.xml'
 
 
 name_to_xml_name = {
@@ -76,7 +77,8 @@ name_to_xml_name = {
     'plac': 'PTPL_A.xml',
     'skladowisko_odpadow': 'PTSO_A.xml',
     'wyrobisko': 'PTWZ_A.xml',
-    'pozostale': 'PTNZ_A.xml'
+    'pozostale': 'PTNZ_A.xml',
+    'power_line': 'SULN_L.xml'
 }
 
 vector_dir = 'vectors'
@@ -104,6 +106,7 @@ plac_frame = process_feature(plac, area_polygon)
 skladowisko_odpadow_frame = process_feature(skladowisko_odpadow, area_polygon)
 wyrobisko_frame = process_feature(wyrobisko, area_polygon)
 droga_frame = process_feature(droga, area_polygon)
+power_line_frame = process_feature(power_line, area_polygon)
 # read vectors/dzialki.gpkg
 dzialki = gpd.read_file(f"{vector_dir}/dzialki.gpkg")
 dzialki_frame = dzialki.clip(area_polygon)
@@ -152,6 +155,7 @@ droga_frame.to_file(f'{vector_dir}/droga.gpkg')
 all_roads.to_file(f'{vector_dir}/all_roads.gpkg')
 intersections.to_file(f'{vector_dir}/intersections.gpkg')
 dzialki_frame.to_file(f'{vector_dir}/dzialki.gpkg')
+power_line_frame.to_file(f'{vector_dir}/power_line.gpkg')
 
 #### PARAMETERS ####
 pixel_size = 5
@@ -159,7 +163,7 @@ weights: dict[str, float] = {
     'dzialki': 1,
     'odleglosc_budynkow': 1,
     'woda': 1,
-    'las': 1,
+    'las': 6,
     'nachylenie': 1,
     'wystawa': 1,
     'dostep_drog': 1,
@@ -169,7 +173,6 @@ weights: dict[str, float] = {
 percent_value = 0.65
 # procent of pixles inside parcels
 procent_of_pixels = 0.60
-# dzialka
 dzialka_area_min = 20000
 
 
@@ -394,6 +397,13 @@ def get_kod_name(kod: str) -> int:
     return x_kod_to_koszt[kod]
 
 kody['kod_name'] = kody['X_KOD'].apply(get_kod_name)
+# set kod_name to int16
+kody['kod_name'] = kody['kod_name'].astype(np.int16)
 
 kody.to_file('kody2.geojson')
+
+# rasterize
+command = f"rio rasterize --profile dtype=int16 --property kod_name --overwrite --like result.tif kody2.geojson stuff.tif"
+subprocess.run(command, shell=True)
+
 
