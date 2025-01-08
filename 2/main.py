@@ -21,9 +21,20 @@ if not pathlib.Path("lodzkie-latest.osm.pbf").exists():
 for idx, layer in gpd.list_layers("lodzkie-latest.osm.pbf").iterrows():
     name = layer["name"]
     print(name)
+    name_to_save = f"{osm_data_folder}/{name}.gpkg"
+    # if exists, skip
+    if pathlib.Path(name_to_save).exists():
+        continue
     df = gpd.read_file("lodzkie-latest.osm.pbf", layer=name)
-    print(df.head())
     # cut to the border and save as name.gpkg
     cut = df.clip(border).to_crs("EPSG:2180")
-    cut.to_file(f"{osm_data_folder}/{name}.gpkg")
+
+# read points and get shops
+points = gpd.read_file("osm_data/points.gpkg")
+# shops are points that contain the string \"shop\"=> in other_tags
+# change type to string
+points["other_tags"] = points["other_tags"].astype(str)
+shops = points[points["other_tags"].str.contains('"shop"=>')]
+# save as shops.gpkg
+shops.to_file(f"{osm_data_folder}/shops.gpkg")
 
