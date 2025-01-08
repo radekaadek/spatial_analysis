@@ -41,6 +41,10 @@ points["other_tags"] = points["other_tags"].astype(str)
 shops = points[points["other_tags"].str.contains('"shop"=>')]
 # save as shops.gpkg
 shops.to_file(f"{generated_data_folder}/shops.gpkg")
-pharmacies = points[points["other_tags"].str.contains('"pharmacy"')]
-pharmacies.to_file(f"{generated_data_folder}/pharmacies.gpkg")
+schools = points[points["other_tags"].str.contains('"school"')]
+schools.to_file(f"{generated_data_folder}/schools.gpkg")
+kindergartens = points[points["other_tags"].str.contains('"kindergarten"')]
+kindergartens.to_file(f"{generated_data_folder}/kindergartens.gpkg")
+offices = points[points["other_tags"].str.contains('"office"')]
+offices.to_file(f"{generated_data_folder}/offices.gpkg")
 
